@@ -1,8 +1,11 @@
 #include <iostream>
+#include <cmath>
 #include <vector>
 #include <set>
 #include "SpookyHash.h"
-#include <unordered_set>
+#include <unordered_map>
+
+typedef std::size_t size_t;
 
 static const unsigned int MAX_STATES = 1024;
 static const unsigned int BOARD_WIDTH = 8;
@@ -20,24 +23,23 @@ enum Piece
 	PAWN, ROOK, KNIGHT, BISHOP, QUEEN, KING
 };
 
-struct BoardBuffer
+struct Board
 {
-	uint8_t data[BOARD_SIZE * MAX_STATES];
-	uint8_t * index = data;
+	uint8_t data[BOARD_SIZE];
 };
 
 struct GameState
 {
-	int value;
-	uint8_t child_count;
+	bool evaluated = false;
+	int value = 0;
+	uint8_t child_count = 0;
 	GameState * children[256];
-	uint8_t * board;
+	Board board;
 };
 
 /**
 	GameState logic functions
 **/
-
 void calculateValue(GameState * state)
 {
 	state->value = 0;
@@ -45,38 +47,33 @@ void calculateValue(GameState * state)
 		state->value += state->children[i]->value;
 }
 
-void searchChildren(GameState * state, const std::unordered_set<GameState*>& visisted_states)
+void searchChildren(GameState * state)
 {
 
 }
 
-/**
-	GameState function-objects for hashing
-**/
-struct HashState
+struct HashBoard
 {
-	size_t operator()(const GameState* state) const
+	size_t operator()(const Board& board) const
 	{
 		size_t hash = 0x32;
-		SpookyHash::Hash32(state->board, sizeof(state->board[0]) * BOARD_SIZE, hash);
+		SpookyHash::Hash32(board.data, sizeof(board.data[0]) * BOARD_SIZE, hash);
 		return hash;
 	}
 };
 
-struct EqualsState
+struct EqualsBoard
 {
-	size_t operator()(const GameState* lhs, const GameState* rhs) const
+	size_t operator()(const Board& lhs, const Board& rhs) const
 	{
-		if (lhs == rhs)
-			return true;
 		for (int i = 0; i < BOARD_SIZE / 8; i++)
-			if (((uint64_t*)lhs->board)[i] != ((uint64_t*)rhs->board)[i])
+			if (((uint64_t*)lhs.data)[i] != ((uint64_t*)rhs.data)[i])
 				return false;
 		return true;
 	}
 };
 
-void setupGameState(GameState* state, BoardBuffer * buffer)
+void setupGameState(GameState* state)
 {
 	uint8_t b[BOARD_SIZE] =
 	{
@@ -89,9 +86,8 @@ void setupGameState(GameState* state, BoardBuffer * buffer)
 		0x90, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x90,
 		0x91, 0x92, 0x93, 0x94, 0x95, 0x93, 0x92, 0x91
 	};
-	state->board = buffer->index++;
 	for (int i = 0; i < BOARD_SIZE; i++)
-		state->board[i] = b[i];
+		state->board.data[i] = b[i];
 }
 
 void printBoard(GameState* state)
@@ -100,7 +96,7 @@ void printBoard(GameState* state)
 	{
 		for (int j = 0; j < BOARD_WIDTH; j++)
 		{
-			uint8_t square = state->board[j + i * BOARD_WIDTH];
+			uint8_t square = state->board.data[j + i * BOARD_WIDTH];
 			if (square & EMPTY_BIT)
 				std::cout << '_';
 			else
@@ -110,19 +106,55 @@ void printBoard(GameState* state)
 	}
 }
 
+std::vector<Board> generateMoves(GameState * state)
+{
+	return std::vector<Board>();
+}
+
+void alpha_beta_minmax(	GameState * state, std::vector<GameState>& states,
+						std::unordered_map<Board, GameState*>& visited,
+						int depth, int a, int b, int f)
+{
+	std::vector<Board> moves = generateMoves(state);
+	if (depth == 0 || state->child_count == 0)
+		return;
+	for (Board board : moves)
+	{
+		GameState * move = visited[board];
+		if (move == nullptr)
+		{
+			states.push_back(GameState());
+			setupGameState(&states.back());
+			alpha_beta_minmax(move, states, visited, depth + 1, a, b, -f);
+		}
+		state->children[state->child_count++] = move;
+
+		if (f > 0) {
+			state->value = state->value > move->value ? state->value : move->value;
+			a = state->value > a ? state->value : a;
+			if(a >= b)
+				break;
+		}
+		else {
+			state->value = state->value < move->value ? state->value : move->value;
+			b = state->value < b ? state->value : b;
+			if (a < b)
+				break;
+		}
+	}
+}
+
 int main()
 {
 	std::cout << "This is Kobold!\n";
-	std::unordered_set<GameState*, HashState, EqualsState> visited_states;
-	BoardBuffer boardBuffer;
+	std::unordered_map<Board, GameState*, HashBoard, EqualsBoard> visited;
 	std::vector<GameState> states;
 	states.push_back(GameState());
-	setupGameState(&states[0], &boardBuffer);
-	visited_states.insert(&states[0]);
+	setupGameState(&states[0]);
+	visited[states[0].board] = &states[0];
 	printBoard(&states[0]);
-
 	GameState * currentState = &states[0];
-
+	
 
 	int i;
 	std::cin >> i;
