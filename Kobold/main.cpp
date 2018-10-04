@@ -1,6 +1,7 @@
 #include <iostream>
 #include <cmath>
 #include <vector>
+#include <array>
 #include <set>
 #include "SpookyHash.h"
 #include <unordered_map>
@@ -13,14 +14,20 @@ static const unsigned int BOARD_HEIGHT = 8;
 static const unsigned int BOARD_SIZE = BOARD_WIDTH * BOARD_HEIGHT;
 
 static const unsigned int PLAYER_BIT = 0b10000000;
-static const unsigned int EMPTY_BIT = 0b01000000;
 static const unsigned int ENPASSANT_BIT = 0b00100000;
 static const unsigned int EDGE_BIT = 0b00010000;
 static const unsigned int PIECE_BITS = 0b00000111;
 
 enum Piece
 {
-	PAWN, ROOK, KNIGHT, BISHOP, QUEEN, KING
+	NONE, PAWN, ROOK, KNIGHT, BISHOP, QUEEN, KING
+};
+
+struct Move
+{
+	uint8_t count = 0;
+	int indices[4] = { -1, -1, -1, -1 };
+	uint8_t new_values[4] = { 0x00, 0x00, 0x00, 0x00 };
 };
 
 struct Board
@@ -36,21 +43,6 @@ struct GameState
 	GameState * children[256];
 	Board board;
 };
-
-/**
-	GameState logic functions
-**/
-void calculateValue(GameState * state)
-{
-	state->value = 0;
-	for (int i = 0; i < state->child_count; i++)
-		state->value += state->children[i]->value;
-}
-
-void searchChildren(GameState * state)
-{
-
-}
 
 struct HashBoard
 {
@@ -75,6 +67,9 @@ struct EqualsBoard
 
 void setupGameState(GameState* state)
 {
+	/*
+		WRONG, REDO
+	*/
 	uint8_t b[BOARD_SIZE] =
 	{
 		0x11, 0x12, 0x13, 0x15, 0x14, 0x13, 0x12, 0x11,
@@ -96,35 +91,77 @@ void printBoard(GameState* state)
 	{
 		for (int j = 0; j < BOARD_WIDTH; j++)
 		{
-			uint8_t square = state->board.data[j + i * BOARD_WIDTH];
-			if (square & EMPTY_BIT)
-				std::cout << '_';
-			else
-				std::cout << (square & PIECE_BITS);
+			unsigned int piece = state->board.data[j + i * BOARD_WIDTH] & PIECE_BITS;
+			switch (piece)
+			{
+			case NONE:
+				std::cout << "_";
+				break;
+			default:
+				std::cout << piece;
+			}
 		}
 		std::cout << std::endl;
 	}
 }
 
-std::vector<Board> generateMoves(GameState * state)
+std::vector<Move> generateMoves(GameState * state)
 {
-	return std::vector<Board>();
+	std::vector<Move> moves;
+	for (int i = 0; i < BOARD_SIZE; i++)
+	{
+		unsigned int piece = state->board.data[i] & PIECE_BITS;
+		if (piece == NONE)
+			continue;
+		Move move;
+		switch (piece)
+		{
+		case PAWN:
+			
+			break;
+		case ROOK:
+			break;
+		case KNIGHT:
+			break;
+		case BISHOP:
+			break;
+		case QUEEN:
+			break;
+		case KING:
+			break;
+		}
+	}
+}
+
+Board applyMove(const Board * board, Move move)
+{
+	Board b = *board;
+	for (int i = 0; i < move.count; i++)
+		b.data[move.indices[i]] = move.new_values[i];
+	return b;
 }
 
 void alpha_beta_minmax(	GameState * state, std::vector<GameState>& states,
 						std::unordered_map<Board, GameState*>& visited,
 						int depth, int a, int b, int f)
 {
-	std::vector<Board> moves = generateMoves(state);
+	visited[state->board] = state;
+	std::vector<Move> moves = generateMoves(state);
 	if (depth == 0 || state->child_count == 0)
 		return;
-	for (Board board : moves)
+	for (Move move : moves)
 	{
-		GameState * move = visited[board];
-		if (move == nullptr)
-		{
+		Board board = state->board;
+		applyMove(&board, move);
+		GameState * move = nullptr;
+		auto it = visited.find(board);
+		if (it != visited.end()) {
+			move = it->second;
+		}
+		else{
 			states.push_back(GameState());
 			setupGameState(&states.back());
+			move = &state[0];
 			alpha_beta_minmax(move, states, visited, depth + 1, a, b, -f);
 		}
 		state->children[state->child_count++] = move;
@@ -154,7 +191,6 @@ int main()
 	visited[states[0].board] = &states[0];
 	printBoard(&states[0]);
 	GameState * currentState = &states[0];
-	
 
 	int i;
 	std::cin >> i;
